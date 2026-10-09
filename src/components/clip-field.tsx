@@ -6,7 +6,8 @@ export const NODE_COUNT = 46;
 
 const WORLD_W = 1120;
 const WORLD_H = 740;
-const PALETTE = ["#5ee7ff", "#ffb020", "#ff6b9a", "#3dffb0", "#c084fc", "#ff7a45", "#7aa2ff", "#f2e36b"];
+/** Cool cyan HUD tones — Minority Report glass, not carnival LEDs. */
+const PALETTE = ["#5ee7ff", "#7aa2ff", "#3d9ecf", "#9ad8ef", "#4ec4e8", "#6eb8d9", "#88c8e6", "#5ba3c9"];
 
 type Dot = {
   id: number;
@@ -78,8 +79,8 @@ export function ClipField({
         drift(nodes, now, dt, scanningRef.current);
         if (now >= nextSpawn) {
           launch(nodes, sparks, goneRef.current, now);
-          if (Math.random() < 0.62) launch(nodes, sparks, goneRef.current, now);
-          nextSpawn = now + (scanningRef.current ? 70 : 140) + Math.random() * 260;
+          if (Math.random() < 0.28) launch(nodes, sparks, goneRef.current, now);
+          nextSpawn = now + (scanningRef.current ? 220 : 420) + Math.random() * 520;
         }
         handOff(nodes, sparks, goneRef.current, now);
       }
@@ -111,7 +112,7 @@ function seedNodes() {
       if (clear) break;
     }
     const angle = Math.random() * Math.PI * 2;
-    const speed = 0.45 + Math.random() * 0.9;
+    const speed = 0.08 + Math.random() * 0.18;
     nodes.push({
       id,
       x,
@@ -127,42 +128,42 @@ function seedNodes() {
 
 function drift(nodes: Dot[], now: number, dt: number, scanning: boolean) {
   const step = dt / 16;
-  const kick = scanning ? 1.7 : 1;
+  const kick = scanning ? 1.25 : 1;
   for (const node of nodes) {
-    node.vx += Math.sin(now * 0.0013 + node.phase) * 0.045 * kick;
-    node.vy += Math.cos(now * 0.0011 + node.phase * 1.6) * 0.045 * kick;
-    const turn = Math.sin(now * 0.00055 + node.phase) * 0.04 * kick;
+    node.vx += Math.sin(now * 0.00045 + node.phase) * 0.012 * kick;
+    node.vy += Math.cos(now * 0.00038 + node.phase * 1.6) * 0.012 * kick;
+    const turn = Math.sin(now * 0.00018 + node.phase) * 0.012 * kick;
     const cosine = Math.cos(turn);
     const sine = Math.sin(turn);
     const vx = node.vx * cosine - node.vy * sine;
     const vy = node.vx * sine + node.vy * cosine;
     node.vx = vx;
     node.vy = vy;
-    if (Math.random() < 0.012) {
-      node.vx += (Math.random() - 0.5) * 1.4;
-      node.vy += (Math.random() - 0.5) * 1.4;
+    if (Math.random() < 0.004) {
+      node.vx += (Math.random() - 0.5) * 0.35;
+      node.vy += (Math.random() - 0.5) * 0.35;
     }
     const speed = Math.hypot(node.vx, node.vy);
-    const max = scanning ? 2.8 : 2.15;
+    const max = scanning ? 0.72 : 0.42;
     if (speed > max) {
       node.vx = (node.vx / speed) * max;
       node.vy = (node.vy / speed) * max;
     }
-    node.vx *= 0.985;
-    node.vy *= 0.985;
+    node.vx *= 0.992;
+    node.vy *= 0.992;
     node.x += node.vx * step;
     node.y += node.vy * step;
-    if (node.x < 48) node.vx += 0.12;
-    if (node.x > WORLD_W - 48) node.vx -= 0.12;
-    if (node.y < 40) node.vy += 0.12;
-    if (node.y > WORLD_H - 40) node.vy -= 0.12;
+    if (node.x < 48) node.vx += 0.035;
+    if (node.x > WORLD_W - 48) node.vx -= 0.035;
+    if (node.y < 40) node.vy += 0.035;
+    if (node.y > WORLD_H - 40) node.vy -= 0.035;
     node.x = Math.max(36, Math.min(WORLD_W - 36, node.x));
     node.y = Math.max(32, Math.min(WORLD_H - 32, node.y));
   }
 }
 
 function launch(nodes: Dot[], sparks: Spark[], gone: Set<number>, now: number, fromId?: number, color?: string) {
-  if (sparks.length > 26) return;
+  if (sparks.length > 14) return;
   const live = nodes.filter((node) => !gone.has(node.id));
   if (live.length < 2) return;
   const origin = fromId == null ? live[Math.floor(Math.random() * live.length)] : nodes[fromId];
@@ -179,7 +180,7 @@ function launch(nodes: Dot[], sparks: Spark[], gone: Set<number>, now: number, f
     from: origin.id,
     to: target.node.id,
     t0: now,
-    dur: 620 + Math.random() * 780,
+    dur: 1100 + Math.random() * 1200,
     color: color ?? (Math.random() < 0.5 ? origin.color : target.node.color),
     handed: false,
   });
@@ -191,7 +192,7 @@ function handOff(nodes: Dot[], sparks: Spark[], gone: Set<number>, now: number) 
     const age = (now - spark.t0) / spark.dur;
     if (age < 0.58 || age > 0.72) continue;
     spark.handed = true;
-    if (Math.random() < 0.78) launch(nodes, sparks, gone, now, spark.to, spark.color);
+    if (Math.random() < 0.42) launch(nodes, sparks, gone, now, spark.to, spark.color);
   }
 }
 
@@ -222,12 +223,12 @@ function paintSparks(
     context.beginPath();
     context.moveTo(start.x, start.y);
     context.lineTo(x, y);
-    context.strokeStyle = withAlpha(spark.color, 0.62 * fade);
-    context.lineWidth = 1.6;
+    context.strokeStyle = withAlpha(spark.color, 0.38 * fade);
+    context.lineWidth = 1.15;
     context.stroke();
     context.beginPath();
-    context.arc(x, y, 3.4, 0, Math.PI * 2);
-    context.fillStyle = withAlpha("#f7fbff", 0.95 * fade);
+    context.arc(x, y, 2.4, 0, Math.PI * 2);
+    context.fillStyle = withAlpha("#d7f0fa", 0.72 * fade);
     context.fill();
   }
 }
@@ -253,20 +254,20 @@ function paintNodes(
     const live = !gone.has(node.id);
     const hot = live && (scanning || flare || hotIds.has(node.id));
     const point = place(node.x, node.y, width, height);
-    const pulse = 0.82 + Math.sin(now * 0.003 + node.phase) * 0.18;
-    const radius = live ? (hot ? 5.6 : 4.2) * pulse : 2.3;
+    const pulse = 0.9 + Math.sin(now * 0.0012 + node.phase) * 0.1;
+    const radius = live ? (hot ? 4.6 : 3.6) * pulse : 2.1;
     if (live) {
       context.beginPath();
-      context.arc(point.x, point.y, hot ? 16 : 12, 0, Math.PI * 2);
-      context.strokeStyle = withAlpha(node.color, hot ? 0.55 : 0.28);
-      context.lineWidth = 1.2;
+      context.arc(point.x, point.y, hot ? 13 : 10, 0, Math.PI * 2);
+      context.strokeStyle = withAlpha(node.color, hot ? 0.32 : 0.16);
+      context.lineWidth = 1;
       context.stroke();
     }
     context.beginPath();
     context.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    context.fillStyle = live ? (flare ? "#f4fdff" : node.color) : "#163246";
+    context.fillStyle = live ? (flare ? "#e8f7fc" : node.color) : "#122636";
     context.shadowColor = live ? node.color : "transparent";
-    context.shadowBlur = live ? (hot ? 18 : 12) : 0;
+    context.shadowBlur = live ? (hot ? 10 : 6) : 0;
     context.fill();
     context.shadowBlur = 0;
   }
