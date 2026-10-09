@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { DeskBar } from "@/components/ui";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipField, NODE_COUNT } from "@/components/clip-field";
-import { CaseReview } from "@/components/case-review";
 import { saveCase } from "@/lib/cases";
 import { cityLabel, DAY_PARTS, vehicleLabel, whenPartLabel, type DayPart } from "@/lib/labels";
 import { CITIES, VEHICLE_TYPES, type CaseRecord, type City, type VehicleType } from "@/lib/types";
@@ -24,9 +24,11 @@ type WhenFilter =
   | { known: false }
   | { known: true; date: string; start: string; end: string; part: DayPart };
 
-type Step = "city" | "when" | "vehicle" | "color" | "searching" | "results";
+type Step = "city" | "when" | "vehicle" | "color" | "searching";
 
 export function Finder() {
+  const router = useRouter();
+  const navigateTimer = useRef<number | null>(null);
   const [step, setStep] = useState<Step>("city");
   const [city, setCity] = useState<City | "">("");
   const [when, setWhen] = useState<WhenFilter | null>(null);
@@ -36,10 +38,13 @@ export function Finder() {
   const [color, setColor] = useState("");
   const [gone, setGone] = useState<Set<number>>(new Set());
   const [flare, setFlare] = useState(false);
-  const [record, setRecord] = useState<CaseRecord | null>(null);
   const [error, setError] = useState("");
 
-  const asking = step !== "results";
+  useEffect(() => {
+    return () => {
+      if (navigateTimer.current !== null) window.clearTimeout(navigateTimer.current);
+    };
+  }, []);
 
   function drop(predicate: (id: number) => boolean) {
     setGone((current) => {
@@ -120,9 +125,9 @@ export function Finder() {
       };
       saveCase(next);
       setFlare(true);
-      window.setTimeout(() => {
-        setRecord(next);
-        setStep("results");
+      if (navigateTimer.current !== null) window.clearTimeout(navigateTimer.current);
+      navigateTimer.current = window.setTimeout(() => {
+        router.replace(`/cases/${next.id}`);
       }, 720);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Search failed.");
@@ -140,10 +145,6 @@ export function Finder() {
 
   const stepNumber = step === "city" ? 1 : step === "when" ? 2 : step === "vehicle" ? 3 : 4;
   const chosenWhen = when?.known ? whenPartLabel(when.date, when.part) : when ? "Any time" : "";
-
-  if (step === "results" && record) {
-    return <CaseReview initial={record} />;
-  }
 
   return (
     <div className="relative min-h-dvh overflow-hidden text-white">
@@ -165,139 +166,136 @@ export function Finder() {
         />
       </div>
 
-      {asking ? (
-        <div className="relative z-20 grid min-h-[calc(100dvh-4rem)] place-items-center px-4 pb-16">
-          <div className="glass min-h-[34rem] w-full max-w-lg rounded-3xl p-7 text-ink sm:p-8">
-            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
-              {step === "searching" ? "Searching" : `Step ${stepNumber} of 4`}
+      <div className="relative z-20 grid min-h-[calc(100dvh-4rem)] place-items-center px-4 pb-16">
+        <div className="glass min-h-[34rem] w-full max-w-lg rounded-3xl p-7 text-ink sm:p-8">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+            {step === "searching" ? "Searching" : `Step ${stepNumber} of 4`}
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">{step === "searching" ? "Tracing the network" : title}</h1>
+          {city ? (
+            <p className="mt-2 text-sm text-muted">
+              {cityLabel(city)}
+              {chosenWhen ? ` · ${chosenWhen}` : ""}
+              {vehicle ? ` · ${vehicleLabel(vehicle)}` : ""}
+              {color ? ` · ${color}` : ""}
             </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{step === "searching" ? "Tracing the network" : title}</h1>
-            {city ? (
-              <p className="mt-2 text-sm text-muted">
-                {cityLabel(city)}
-                {chosenWhen ? ` · ${chosenWhen}` : ""}
-                {vehicle ? ` · ${vehicleLabel(vehicle)}` : ""}
-                {color ? ` · ${color}` : ""}
-              </p>
-            ) : (
-              <p className="mt-2 text-sm text-muted">Each answer dims nodes that cannot match.</p>
-            )}
+          ) : (
+            <p className="mt-2 text-sm text-muted">Each answer dims nodes that cannot match.</p>
+          )}
 
-            {step === "city" ? (
-              <div className="mt-6 grid gap-3">
-                {CITIES.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => chooseCity(value)}
-                    className="rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left text-lg font-semibold transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
-                  >
-                    {cityLabel(value)}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            {step === "when" && city ? (
-              <div className="mt-6">
-                <label className="block text-sm font-medium" htmlFor="case-date">
-                  Date
-                </label>
-                <input
-                  id="case-date"
-                  type="date"
-                  value={date}
-                  onChange={(event) => setDate(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-line bg-black/30 px-3 py-3 text-base"
-                />
-                <p className="mt-2 text-sm text-muted">{ARCHIVE_HINT[city]} Times are local to that city.</p>
-                <p className="mt-4 text-sm font-medium">Time of day</p>
-                <div className="mt-2 grid grid-cols-3 gap-3">
-                  {DAY_PARTS.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      aria-pressed={part === item.id}
-                      onClick={() => setPart(item.id)}
-                      className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold transition ${
-                        part === item.id
-                          ? "border-navy bg-white/[0.06] shadow-[0_0_24px_rgba(94,231,255,0.16)]"
-                          : "border-line bg-white/[0.02] hover:border-navy/80"
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
+          {step === "city" ? (
+            <div className="mt-6 grid gap-3">
+              {CITIES.map((value) => (
                 <button
+                  key={value}
                   type="button"
-                  onClick={useThisDay}
-                  className="action mt-4 w-full rounded-xl px-4 py-4 text-left text-lg font-semibold transition"
+                  onClick={() => chooseCity(value)}
+                  className="rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left text-lg font-semibold transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
                 >
-                  {part === "morning" ? "Use this morning" : part === "evening" ? "Use this evening" : "Use this day"}
+                  {cityLabel(value)}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => chooseWhen({ known: false })}
-                  className="mt-3 w-full rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left text-lg font-semibold transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
-                >
-                  I don't know
-                </button>
-              </div>
-            ) : null}
+              ))}
+            </div>
+          ) : null}
 
-            {step === "vehicle" ? (
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                {VEHICLE_TYPES.map((value) => (
+          {step === "when" && city ? (
+            <div className="mt-6">
+              <label className="block text-sm font-medium" htmlFor="case-date">
+                Date
+              </label>
+              <input
+                id="case-date"
+                type="date"
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-line bg-black/30 px-3 py-3 text-base"
+              />
+              <p className="mt-2 text-sm text-muted">{ARCHIVE_HINT[city]} Times are local to that city.</p>
+              <p className="mt-4 text-sm font-medium">Time of day</p>
+              <div className="mt-2 grid grid-cols-3 gap-3">
+                {DAY_PARTS.map((item) => (
                   <button
-                    key={value}
+                    key={item.id}
                     type="button"
-                    onClick={() => chooseVehicle(value)}
-                    className="rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left font-semibold transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
+                    aria-pressed={part === item.id}
+                    onClick={() => setPart(item.id)}
+                    className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold transition ${
+                      part === item.id
+                        ? "border-navy bg-white/[0.06] shadow-[0_0_24px_rgba(94,231,255,0.16)]"
+                        : "border-line bg-white/[0.02] hover:border-navy/80"
+                    }`}
                   >
-                    {vehicleLabel(value)}
+                    {item.label}
                   </button>
                 ))}
               </div>
-            ) : null}
-
-            {step === "color" ? (
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                {COLORS.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => void chooseColor(value)}
-                    className="rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left font-semibold capitalize transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
-                  >
-                    {value}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            {step === "searching" ? (
-              <>
-                <div className="scan-track mt-8 h-1.5 rounded-full" />
-                <p className="mt-4 text-sm text-muted">The closest nodes are lighting up.</p>
-              </>
-            ) : null}
-
-            {error ? <p className="mt-4 text-sm text-[#e07a7a]">{error}</p> : null}
-
-            {step === "when" || step === "vehicle" || step === "color" ? (
               <button
                 type="button"
-                onClick={() => setStep(step === "when" ? "city" : step === "vehicle" ? "when" : "vehicle")}
-                className="mt-5 text-sm font-medium text-muted"
+                onClick={useThisDay}
+                className="action mt-4 w-full rounded-xl px-4 py-4 text-left text-lg font-semibold transition"
               >
-                Back
+                {part === "morning" ? "Use this morning" : part === "evening" ? "Use this evening" : "Use this day"}
               </button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+              <button
+                type="button"
+                onClick={() => chooseWhen({ known: false })}
+                className="mt-3 w-full rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left text-lg font-semibold transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
+              >
+                I don't know
+              </button>
+            </div>
+          ) : null}
 
+          {step === "vehicle" ? (
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              {VEHICLE_TYPES.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => chooseVehicle(value)}
+                  className="rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left font-semibold transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
+                >
+                  {vehicleLabel(value)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {step === "color" ? (
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              {COLORS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => void chooseColor(value)}
+                  className="rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left font-semibold capitalize transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {step === "searching" ? (
+            <>
+              <div className="scan-track mt-8 h-1.5 rounded-full" />
+              <p className="mt-4 text-sm text-muted">The closest nodes are lighting up.</p>
+            </>
+          ) : null}
+
+          {error ? <p className="mt-4 text-sm text-[#e07a7a]">{error}</p> : null}
+
+          {step === "when" || step === "vehicle" || step === "color" ? (
+            <button
+              type="button"
+              onClick={() => setStep(step === "when" ? "city" : step === "vehicle" ? "when" : "vehicle")}
+              className="mt-5 text-sm font-medium text-muted"
+            >
+              Back
+            </button>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
