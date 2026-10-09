@@ -22,7 +22,7 @@ export function CaseList() {
         action={
           <Link
             href="/new"
-            className="rounded-md bg-navy px-3.5 py-2 text-sm font-semibold text-[#1c1408] transition hover:bg-[#e4b56e]"
+            className="action rounded-md px-3.5 py-2 text-sm font-semibold transition"
           >
             Submit new case
           </Link>
@@ -38,14 +38,14 @@ export function CaseList() {
         </div>
 
         {cases === null ? null : cases.length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-line bg-panel px-6 py-12">
+          <div className="glass mt-8 rounded-2xl px-6 py-12">
             <p className="max-w-md text-muted">No cases on this desk. Submit one to search every camera in a city.</p>
-            <Link href="/new" className="mt-6 inline-flex rounded-md bg-navy px-4 py-2.5 text-sm font-semibold text-[#1c1408]">
+            <Link href="/new" className="action mt-6 inline-flex rounded-md px-4 py-2.5 text-sm font-semibold">
               Submit new case
             </Link>
           </div>
         ) : (
-          <ul className="mt-8 overflow-hidden rounded-2xl border border-line bg-panel">
+          <ul className="glass mt-8 overflow-hidden rounded-2xl">
             {cases.map((item) => {
               const status = caseStatus(item);
               const open = status === "open";

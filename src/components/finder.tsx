@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { DeskBar } from "@/components/ui";
 import { useMemo, useState } from "react";
-import { ClipField } from "@/components/clip-field";
+import { ClipField, NODE_COUNT } from "@/components/clip-field";
 import { CaseReview } from "@/components/case-review";
 import { saveCase } from "@/lib/cases";
 import { cityLabel, vehicleLabel, whenLabel } from "@/lib/labels";
@@ -34,6 +34,7 @@ export function Finder() {
   const [vehicle, setVehicle] = useState<VehicleType | "">("");
   const [color, setColor] = useState("");
   const [gone, setGone] = useState<Set<number>>(new Set());
+  const [flare, setFlare] = useState(false);
   const [record, setRecord] = useState<CaseRecord | null>(null);
   const [error, setError] = useState("");
 
@@ -42,7 +43,7 @@ export function Finder() {
   function drop(predicate: (id: number) => boolean) {
     setGone((current) => {
       const next = new Set(current);
-      for (let id = 0; id < 42; id += 1) {
+      for (let id = 0; id < NODE_COUNT; id += 1) {
         if (predicate(id)) next.add(id);
       }
       return next;
@@ -123,11 +124,11 @@ export function Finder() {
         clips: data.clips ?? [],
       };
       saveCase(next);
-      setGone(new Set(Array.from({ length: 42 }, (_, id) => id)));
+      setFlare(true);
       window.setTimeout(() => {
         setRecord(next);
         setStep("results");
-      }, 680);
+      }, 720);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Search failed.");
       setStep("color");
@@ -150,9 +151,15 @@ export function Finder() {
   }
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-[#0e141b] text-white">
-      {step === "searching" ? null : <ClipField gone={gone} />}
-      <div className={`absolute inset-0 ${step === "searching" ? "bg-[#070b10]" : "bg-[#0e141b]/25"}`} />
+    <div className="relative min-h-dvh overflow-hidden text-white">
+      <ClipField gone={gone} scanning={step === "searching"} flare={flare} />
+      <div
+        className={`pointer-events-none absolute inset-0 ${
+          step === "searching"
+            ? "bg-[radial-gradient(ellipse_at_center,rgba(4,7,14,0.15),rgba(4,7,14,0.72))]"
+            : "bg-[radial-gradient(ellipse_at_center,rgba(4,7,14,0.35),rgba(4,7,14,0.78))]"
+        }`}
+      />
       <div className="relative z-20">
         <DeskBar
           action={
@@ -165,11 +172,11 @@ export function Finder() {
 
       {asking ? (
         <div className="relative z-20 grid min-h-[calc(100dvh-4rem)] place-items-center px-4 pb-16">
-          <div key={step} className={`${step === "searching" ? "" : "rise-in"} w-full max-w-lg rounded-3xl border border-line bg-panel p-7 text-ink shadow-2xl sm:p-8`}>
+          <div key={step} className={`${step === "searching" ? "" : "rise-in"} glass w-full max-w-lg rounded-3xl p-7 text-ink sm:p-8`}>
             <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
               {step === "searching" ? "Searching" : `Step ${stepNumber} of 4`}
             </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{step === "searching" ? "Checking the cameras" : title}</h1>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{step === "searching" ? "Tracing the network" : title}</h1>
             {city ? (
               <p className="mt-2 text-sm text-muted">
                 {cityLabel(city)}
@@ -178,7 +185,7 @@ export function Finder() {
                 {color ? ` · ${color}` : ""}
               </p>
             ) : (
-              <p className="mt-2 text-sm text-muted">Each answer clears clips that cannot match.</p>
+              <p className="mt-2 text-sm text-muted">Each answer dims nodes that cannot match.</p>
             )}
 
             {step === "city" ? (
@@ -188,7 +195,7 @@ export function Finder() {
                     key={value}
                     type="button"
                     onClick={() => chooseCity(value)}
-                    className="rounded-2xl border border-line px-4 py-4 text-left text-lg font-semibold transition hover:border-navy/80 hover:bg-navy/10"
+                    className="rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left text-lg font-semibold transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
                   >
                     {cityLabel(value)}
                   </button>
@@ -201,7 +208,7 @@ export function Finder() {
                 <button
                   type="button"
                   onClick={() => chooseWhen({ known: false })}
-                  className="w-full rounded-2xl border border-line px-4 py-4 text-left text-lg font-semibold transition hover:border-navy/80 hover:bg-navy/10"
+                  className="w-full rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left text-lg font-semibold transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
                 >
                   I don't know
                 </button>
@@ -240,7 +247,7 @@ export function Finder() {
                 <button
                   type="button"
                   onClick={useThisTime}
-                  className="mt-4 w-full rounded-2xl bg-navy px-4 py-4 text-left text-lg font-semibold text-[#1c1408] transition hover:bg-[#e4b56e]"
+                  className="action mt-4 w-full rounded-xl px-4 py-4 text-left text-lg font-semibold transition"
                 >
                   {startTime && endTime ? "Use this window" : "Use this day"}
                 </button>
@@ -254,7 +261,7 @@ export function Finder() {
                     key={value}
                     type="button"
                     onClick={() => chooseVehicle(value)}
-                    className="rounded-2xl border border-line px-4 py-4 text-left font-semibold transition hover:border-navy/80 hover:bg-navy/10"
+                    className="rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left font-semibold transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
                   >
                     {vehicleLabel(value)}
                   </button>
@@ -269,7 +276,7 @@ export function Finder() {
                     key={value}
                     type="button"
                     onClick={() => void chooseColor(value)}
-                    className="rounded-2xl border border-line px-4 py-4 text-left font-semibold capitalize transition hover:border-navy/80 hover:bg-navy/10"
+                    className="rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left font-semibold capitalize transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
                   >
                     {value}
                   </button>
@@ -280,7 +287,7 @@ export function Finder() {
             {step === "searching" ? (
               <>
                 <div className="scan-track mt-8 h-1.5 rounded-full" />
-                <p className="mt-4 text-sm text-muted">This usually takes a few seconds.</p>
+                <p className="mt-4 text-sm text-muted">The closest nodes are lighting up.</p>
               </>
             ) : null}
 

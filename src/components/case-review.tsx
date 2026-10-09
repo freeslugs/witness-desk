@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ClipGraph } from "@/components/clip-graph";
 import { DeskBar } from "@/components/ui";
 import { saveCase } from "@/lib/cases";
 import { cameraLabel, cityLabel, displayWhen, vehicleLabel } from "@/lib/labels";
@@ -68,7 +69,7 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
         }
       />
       <div className="mx-auto max-w-7xl px-5 py-6 sm:px-8">
-        <div className="chip-in mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-line bg-panel px-4 py-3 text-sm">
+        <div className="chip-in glass mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl px-4 py-3 text-sm">
           <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">{record.id.slice(0, 8)}</span>
           <span className="font-semibold">{cityLabel(record.location)}</span>
           <span className="capitalize text-muted">
@@ -81,14 +82,18 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
         </div>
 
         {record.clips.length === 0 ? (
-          <p className="rounded-2xl border border-line bg-panel p-8 text-muted">No clips came back for that description.</p>
+          <p className="glass rounded-2xl p-8 text-muted">No nodes came back for that description.</p>
         ) : (
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
             <section>
               {active ? (
                 <div>
-                  <div className="overflow-hidden rounded-2xl border border-line bg-black shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-                    <div className="flex items-center justify-between border-b border-white/10 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-white/60">
+                  <div className="relative overflow-hidden rounded-2xl border border-[#5ee7ff]/25 bg-black shadow-[0_0_40px_rgba(40,140,200,0.16)]">
+                    <span className="pointer-events-none absolute left-2 top-2 z-10 h-4 w-4 border-l border-t border-navy" />
+                    <span className="pointer-events-none absolute right-2 top-2 z-10 h-4 w-4 border-r border-t border-navy" />
+                    <span className="pointer-events-none absolute bottom-2 left-2 z-10 h-4 w-4 border-b border-l border-navy" />
+                    <span className="pointer-events-none absolute bottom-2 right-2 z-10 h-4 w-4 border-b border-r border-navy" />
+                    <div className="flex items-center justify-between border-b border-[#5ee7ff]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[#9adff0]">
                       <span>{active ? cameraLabel(active.cameraId) : "Camera"}</span>
                       <span>{active ? `${Math.round(active.startSec)}s–${Math.round(active.endSec)}s` : ""}</span>
                     </div>
@@ -106,7 +111,7 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
                     <button
                       type="button"
                       onClick={() => void confirm()}
-                      className="rounded-md bg-navy px-6 py-3 text-sm font-semibold text-[#1c1408] transition hover:bg-[#e4b56e]"
+                      className="action rounded-md px-6 py-3 text-sm font-semibold transition"
                     >
                       Yes, this is it
                     </button>
@@ -124,7 +129,7 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
                   {frameNote ? <p className="mt-3 text-sm text-muted">{frameNote}</p> : null}
                 </div>
               ) : (
-                <div className="rounded-2xl border border-line bg-panel p-8">
+                <div className="glass rounded-2xl p-8">
                   <h2 className="text-2xl font-semibold tracking-tight">Every clip is cleared.</h2>
                   <p className="mt-2 text-muted">Start a new search if the vehicle was not in this set.</p>
                 </div>
@@ -133,7 +138,7 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
 
             <aside className="space-y-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
               {record.still ? (
-                <div className="rise-in overflow-hidden rounded-2xl border border-line bg-panel">
+                <div className="rise-in glass overflow-hidden rounded-2xl">
                   <img src={record.still} alt="Still of the confirmed vehicle" className="aspect-video w-full object-cover" />
                   <div className="flex flex-wrap items-center justify-between gap-3 p-4">
                     <div>
@@ -155,34 +160,15 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
                   </div>
                 </div>
               ) : null}
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted">Other clips</p>
-                <ul className="grid max-h-[70vh] grid-cols-2 gap-2 overflow-auto pr-1">
-                  {open.map((clip, index) => (
-                    <li key={clip.id}>
-                      <button
-                        type="button"
-                        onClick={() => setActiveId(clip.id)}
-                        className={`h-full w-full rounded-xl border px-3 py-3 text-left transition ${
-                          clip.id === active?.id ? "border-navy/70 bg-navy/10" : "border-line bg-white/[0.03] hover:border-white/20"
-                        }`}
-                      >
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold">
-                            {index + 1}. {cameraLabel(clip.cameraId)}
-                          </span>
-                          {clip.mark === "possible_match" ? (
-                            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-match">Yes</span>
-                          ) : null}
-                        </span>
-                        <span className="mt-1 line-clamp-3 block text-xs leading-relaxed text-muted">
-                          {clip.caption || "No caption"}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {open.length > 0 ? (
+                <div>
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-navy">Network</p>
+                    <p className="font-mono text-[11px] text-muted">{open.length} live</p>
+                  </div>
+                  <ClipGraph clips={open} activeId={active?.id ?? ""} onSelect={setActiveId} />
+                </div>
+              ) : null}
             </aside>
             {active ? (
               <div>
