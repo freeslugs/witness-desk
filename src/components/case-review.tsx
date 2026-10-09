@@ -16,7 +16,6 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
   const [record, setRecord] = useState(initial);
   const [activeId, setActiveId] = useState(() => firstOpen(initial));
   const [visitCalls, setVisitCalls] = useState<Record<string, NodeCall>>({});
-  const [holding, setHolding] = useState(false);
   const [inspecting, setInspecting] = useState(Boolean(initial.still));
   const [frameNote, setFrameNote] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -47,7 +46,6 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
     video.dataset.clip = activeSource;
     video.loop = false;
     video.src = next;
-    setHolding(false);
     void video.play().catch(() => undefined);
   }, [activeSource]);
 
@@ -101,7 +99,6 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
     if (!active) return;
     const video = videoRef.current;
     video?.pause();
-    setHolding(true);
     const time = video?.currentTime ?? 0;
     const still = await grabFrame(video);
     const vehicleBox = still ? await readVehicleBox(active.source, time) : record.vehicleBox ?? null;
@@ -195,7 +192,6 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
                       muted
                       preload="auto"
                       aria-label="Clip under review"
-                      onEnded={() => setHolding(true)}
                     />
                     {inspecting && record.still ? <FrameLoupe src={record.still} box={record.vehicleBox} /> : null}
                   </div>
@@ -228,9 +224,6 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
                       {reviewed} cleared · {open.length} left
                     </p>
                   </div>
-                  {holding && active.mark !== "possible_match" ? (
-                    <p className="mt-3 text-sm text-muted">This clip is done. Yes stays here. No plays the next one.</p>
-                  ) : null}
                   {frameNote ? <p className="mt-3 text-sm text-muted">{frameNote}</p> : null}
                 </div>
               ) : (
