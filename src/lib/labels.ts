@@ -53,6 +53,22 @@ export function displayWhen(timeLabel: string | undefined, caseDate: string) {
   return "Any time";
 }
 
+export type DayPart = "morning" | "evening" | "any";
+
+export const DAY_PARTS: { id: DayPart; label: string; start: string; end: string }[] = [
+  { id: "morning", label: "Morning", start: "05:00", end: "12:00" },
+  { id: "evening", label: "Evening", start: "17:00", end: "23:00" },
+  { id: "any", label: "Any time", start: "", end: "" },
+];
+
+export function whenPartLabel(date: string, part: DayPart) {
+  const day = formatDate(date);
+  if (!date) return "Any time";
+  if (part === "any") return day;
+  const name = DAY_PARTS.find((item) => item.id === part)?.label ?? "";
+  return `${day} · ${name}`;
+}
+
 export function whenLabel(date: string, start = "", end = "") {
   if (!date) return "Any time";
   const day = formatDate(date);

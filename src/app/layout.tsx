@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
+import { IBM_Plex_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 
 const sans = Instrument_Sans({
@@ -13,6 +13,12 @@ const mono = IBM_Plex_Mono({
   weight: ["400", "500"],
 });
 
+const serif = Instrument_Serif({
+  variable: "--font-serif-app",
+  subsets: ["latin"],
+  weight: "400",
+});
+
 export const metadata: Metadata = {
   title: "Witness desk",
   description: "Search every camera in a city for a vehicle, then mark and save the case.",
@@ -20,7 +26,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable} h-full`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable} ${serif.variable} h-full`}>
       <body className="min-h-full antialiased">{children}</body>
     </html>
   );

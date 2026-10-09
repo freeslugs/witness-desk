@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ClipGraph } from "@/components/clip-graph";
+import { ClipGraph, type NodeCall } from "@/components/clip-graph";
 import { DeskBar } from "@/components/ui";
 import { saveCase } from "@/lib/cases";
 import { cameraLabel, cityLabel, displayWhen, vehicleLabel } from "@/lib/labels";
@@ -11,10 +11,27 @@ import type { CaseRecord } from "@/lib/types";
 export function CaseReview({ initial }: { initial: CaseRecord }) {
   const [record, setRecord] = useState(initial);
   const [activeId, setActiveId] = useState(() => firstOpen(initial));
+  const [touring, setTouring] = useState(true);
+  const [visitCalls, setVisitCalls] = useState<Record<string, NodeCall>>({});
   const [frameNote, setFrameNote] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const open = useMemo(() => record.clips.filter((clip) => clip.mark !== "not_vehicle"), [record.clips]);
+  const openRef = useRef(open);
+  openRef.current = open;
+  const clipsRef = useRef(record.clips);
+  clipsRef.current = record.clips;
+  const cutoff = useMemo(() => median(record.clips.map((clip) => clip.score)), [record.clips]);
+  const cutoffRef = useRef(cutoff);
+  cutoffRef.current = cutoff;
+  const calls = useMemo(() => {
+    const next = { ...visitCalls };
+    for (const clip of record.clips) {
+      if (clip.mark === "possible_match") next[clip.id] = "yes";
+      if (clip.mark === "not_vehicle") next[clip.id] = "no";
+    }
+    return next;
+  }, [record.clips, visitCalls]);
   const active = open.find((clip) => clip.id === activeId) ?? open[0] ?? null;
   const reviewed = record.clips.length - open.length;
   const activeSource = active?.source ?? "";
@@ -28,6 +45,45 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
     video.src = next;
     void video.play().catch(() => undefined);
   }, [activeSource]);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setTouring(false);
+  }, []);
+
+  useEffect(() => {
+    if (!touring) return;
+    const timer = window.setInterval(() => {
+      const list = openRef.current;
+      if (list.length < 2) return;
+      setActiveId((current) => {
+        const index = list.findIndex((clip) => clip.id === current);
+        return list[(Math.max(index, 0) + 1) % list.length]?.id ?? current;
+      });
+    }, 2800);
+    return () => window.clearInterval(timer);
+  }, [touring]);
+
+  const previousActive = useRef(activeId);
+  useEffect(() => {
+    const leaving = previousActive.current;
+    previousActive.current = activeId;
+    if (!leaving || leaving === activeId) return;
+    stampLeaving(leaving);
+  }, [activeId]);
+
+  function stampLeaving(id: string) {
+    setVisitCalls((current) => {
+      if (current[id]) return current;
+      const clip = clipsRef.current.find((item) => item.id === id);
+      if (!clip || clip.mark) return current;
+      return { ...current, [id]: clip.score >= cutoffRef.current ? "yes" : "no" };
+    });
+  }
+
+  function selectNode(id: string) {
+    setTouring(false);
+    setActiveId(id);
+  }
 
   function commit(next: CaseRecord) {
     setRecord(next);
@@ -51,6 +107,7 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
 
   async function confirm() {
     if (!active) return;
+    setTouring(false);
     const still = await grabFrame(videoRef.current);
     const clips = record.clips.map((clip) =>
       clip.id === active.id ? { ...clip, mark: "possible_match" as const } : clip,
@@ -63,9 +120,14 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
     <div className="min-h-full text-ink">
       <DeskBar
         action={
-          <Link href="/new" className="font-mono text-[11px] uppercase tracking-[0.16em] text-navy">
-            New case
-          </Link>
+          <div className="flex items-center gap-5">
+            <Link href="/cases" className="font-mono text-[11px] uppercase tracking-[0.16em] text-navy">
+              Cases
+            </Link>
+            <Link href="/new" className="font-mono text-[11px] uppercase tracking-[0.16em] text-navy">
+              New case
+            </Link>
+          </div>
         }
       />
       <div className="mx-auto max-w-7xl px-5 py-6 sm:px-8">
@@ -160,13 +222,14 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
                   </div>
                 </div>
               ) : null}
-              {open.length > 0 ? (
+              {record.clips.length > 0 ? (
                 <div>
-                  <div className="mb-3 flex items-center justify-between">
+                  <div className="mb-3 flex items-center justify-between gap-3">
                     <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-navy">Network</p>
                     <p className="font-mono text-[11px] text-muted">{open.length} live</p>
                   </div>
-                  <ClipGraph clips={open} activeId={active?.id ?? ""} onSelect={setActiveId} />
+                  <ClipGraph clips={record.clips} activeId={active?.id ?? ""} calls={calls} onSelect={selectNode} />
+                  <p className="mt-2 font-mono text-[11px] text-muted">Brighter nodes scored higher. A check or an x is the call after a visit.</p>
                 </div>
               ) : null}
             </aside>
@@ -195,6 +258,13 @@ function Mark({ on, label, onClick }: { on: boolean; label: string; onClick: () 
       {label}
     </button>
   );
+}
+
+function median(values: number[]) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 function firstOpen(record: CaseRecord) {

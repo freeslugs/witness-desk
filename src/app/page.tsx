@@ -1,5 +1,5 @@
-import { CaseList } from "@/components/case-list";
+import { Landing } from "@/components/landing";
 
 export default function HomePage() {
-  return <CaseList />;
+  return <Landing />;
 }

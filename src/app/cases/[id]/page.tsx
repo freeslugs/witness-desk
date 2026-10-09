@@ -24,8 +24,8 @@ export default function CasePage() {
       <div className="px-8 py-16">
         <h1 className="text-3xl font-semibold tracking-tight">This case is not on this desk.</h1>
         <p className="mt-3 text-muted">Cases stay in the browser where they were saved.</p>
-        <Link href="/" className="action mt-6 inline-flex rounded-md px-4 py-2 text-sm font-semibold">
-          Back
+        <Link href="/cases" className="action mt-6 inline-flex rounded-md px-4 py-2 text-sm font-semibold">
+          Back to cases
         </Link>
       </div>
     );

@@ -3,6 +3,7 @@
 @theme inline {
   --font-sans: var(--font-sans-app);
   --font-mono: var(--font-mono-app);
+  --font-serif: var(--font-serif-app), "Iowan Old Style", Palatino, serif;
   --color-ink: #e7f4ff;
   --color-muted: #7f97ab;
   --color-line: #1a3c54;

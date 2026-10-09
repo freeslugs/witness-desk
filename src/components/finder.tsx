@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { ClipField, NODE_COUNT } from "@/components/clip-field";
 import { CaseReview } from "@/components/case-review";
 import { saveCase } from "@/lib/cases";
-import { cityLabel, vehicleLabel, whenLabel } from "@/lib/labels";
+import { cityLabel, DAY_PARTS, vehicleLabel, whenPartLabel, type DayPart } from "@/lib/labels";
 import { CITIES, VEHICLE_TYPES, type CaseRecord, type City, type VehicleType } from "@/lib/types";
 
 const COLORS = ["yellow", "white", "black", "silver", "blue", "red"];
@@ -20,7 +20,9 @@ const ARCHIVE_HINT: Record<City, string> = {
   san_francisco: "Indexed San Francisco footage is October 1 and October 6, 2026.",
 };
 
-type WhenFilter = { known: false } | { known: true; date: string; start: string; end: string };
+type WhenFilter =
+  | { known: false }
+  | { known: true; date: string; start: string; end: string; part: DayPart };
 
 type Step = "city" | "when" | "vehicle" | "color" | "searching" | "results";
 
@@ -29,8 +31,7 @@ export function Finder() {
   const [city, setCity] = useState<City | "">("");
   const [when, setWhen] = useState<WhenFilter | null>(null);
   const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const [part, setPart] = useState<DayPart>("any");
   const [vehicle, setVehicle] = useState<VehicleType | "">("");
   const [color, setColor] = useState("");
   const [gone, setGone] = useState<Set<number>>(new Set());
@@ -64,20 +65,14 @@ export function Finder() {
     setError("");
   }
 
-  function useThisTime() {
+  function useThisDay() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       setError("Pick a date, or choose I don't know.");
       return;
     }
-    if (Boolean(startTime) !== Boolean(endTime)) {
-      setError("Add both a start and an end, or leave both empty for the whole day.");
-      return;
-    }
-    if (startTime && endTime && endTime <= startTime) {
-      setError("The end time has to be later than the start.");
-      return;
-    }
-    chooseWhen({ known: true, date, start: startTime, end: endTime });
+    const chosen = DAY_PARTS.find((item) => item.id === part);
+    if (!chosen) return;
+    chooseWhen({ known: true, date, start: chosen.start, end: chosen.end, part: chosen.id });
   }
 
   function chooseVehicle(value: VehicleType) {
@@ -115,7 +110,7 @@ export function Finder() {
         vehicleType: vehicle,
         location: city,
         caseDate: when?.known ? when.date : "",
-        timeLabel: when?.known ? whenLabel(when.date, when.start, when.end) : "Any time",
+        timeLabel: when?.known ? whenPartLabel(when.date, when.part) : "Any time",
         stolen: false,
         hitAndRun: false,
         query: data.query || `${value} ${vehicle}`,
@@ -144,7 +139,7 @@ export function Finder() {
   }, [step]);
 
   const stepNumber = step === "city" ? 1 : step === "when" ? 2 : step === "vehicle" ? 3 : 4;
-  const chosenWhen = when?.known ? whenLabel(when.date, when.start, when.end) : when ? "Any time" : "";
+  const chosenWhen = when?.known ? whenPartLabel(when.date, when.part) : when ? "Any time" : "";
 
   if (step === "results" && record) {
     return <CaseReview initial={record} />;
@@ -163,7 +158,7 @@ export function Finder() {
       <div className="relative z-20">
         <DeskBar
           action={
-            <Link href="/" className="font-mono text-[11px] uppercase tracking-[0.16em] text-white/70">
+            <Link href="/cases" className="font-mono text-[11px] uppercase tracking-[0.16em] text-white/70">
               Cases
             </Link>
           }
@@ -172,7 +167,7 @@ export function Finder() {
 
       {asking ? (
         <div className="relative z-20 grid min-h-[calc(100dvh-4rem)] place-items-center px-4 pb-16">
-          <div key={step} className={`${step === "searching" ? "" : "rise-in"} glass w-full max-w-lg rounded-3xl p-7 text-ink sm:p-8`}>
+          <div className="glass min-h-[34rem] w-full max-w-lg rounded-3xl p-7 text-ink sm:p-8">
             <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
               {step === "searching" ? "Searching" : `Step ${stepNumber} of 4`}
             </p>
@@ -205,14 +200,6 @@ export function Finder() {
 
             {step === "when" && city ? (
               <div className="mt-6">
-                <button
-                  type="button"
-                  onClick={() => chooseWhen({ known: false })}
-                  className="w-full rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left text-lg font-semibold transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
-                >
-                  I don't know
-                </button>
-                <p className="my-4 text-center text-xs font-semibold uppercase tracking-[0.16em] text-muted">or</p>
                 <label className="block text-sm font-medium" htmlFor="case-date">
                   Date
                 </label>
@@ -224,32 +211,37 @@ export function Finder() {
                   className="mt-2 w-full rounded-xl border border-line bg-black/30 px-3 py-3 text-base"
                 />
                 <p className="mt-2 text-sm text-muted">{ARCHIVE_HINT[city]} Times are local to that city.</p>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <label className="block text-sm font-medium">
-                    From
-                    <input
-                      type="time"
-                      value={startTime}
-                      onChange={(event) => setStartTime(event.target.value)}
-                      className="mt-2 w-full rounded-xl border border-line bg-black/30 px-3 py-3 text-base"
-                    />
-                  </label>
-                  <label className="block text-sm font-medium">
-                    To
-                    <input
-                      type="time"
-                      value={endTime}
-                      onChange={(event) => setEndTime(event.target.value)}
-                      className="mt-2 w-full rounded-xl border border-line bg-black/30 px-3 py-3 text-base"
-                    />
-                  </label>
+                <p className="mt-4 text-sm font-medium">Time of day</p>
+                <div className="mt-2 grid grid-cols-3 gap-3">
+                  {DAY_PARTS.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      aria-pressed={part === item.id}
+                      onClick={() => setPart(item.id)}
+                      className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold transition ${
+                        part === item.id
+                          ? "border-navy bg-white/[0.06] shadow-[0_0_24px_rgba(94,231,255,0.16)]"
+                          : "border-line bg-white/[0.02] hover:border-navy/80"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
                 <button
                   type="button"
-                  onClick={useThisTime}
+                  onClick={useThisDay}
                   className="action mt-4 w-full rounded-xl px-4 py-4 text-left text-lg font-semibold transition"
                 >
-                  {startTime && endTime ? "Use this window" : "Use this day"}
+                  {part === "morning" ? "Use this morning" : part === "evening" ? "Use this evening" : "Use this day"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => chooseWhen({ known: false })}
+                  className="mt-3 w-full rounded-xl border border-line bg-white/[0.02] px-4 py-4 text-left text-lg font-semibold transition hover:border-navy/80 hover:shadow-[0_0_24px_rgba(94,231,255,0.16)]"
+                >
+                  I don't know
                 </button>
               </div>
             ) : null}

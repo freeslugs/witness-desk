@@ -45,41 +45,47 @@ export function CaseList() {
             </Link>
           </div>
         ) : (
-          <ul className="glass mt-8 overflow-hidden rounded-2xl">
-            {cases.map((item) => {
-              const status = caseStatus(item);
-              const open = status === "open";
-              return (
-                <li key={item.id} className="border-t border-line first:border-t-0">
-                  <Link href={`/cases/${item.id}`} className="group grid gap-3 px-5 py-4 transition hover:bg-white/[0.03] sm:grid-cols-[7rem_1fr_auto] sm:items-center">
-                    <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">{item.id.slice(0, 8)}</span>
-                    <span>
-                      <span className="block text-lg font-semibold capitalize tracking-tight">
-                        {item.color} {vehicleLabel(item.vehicleType)}
-                      </span>
-                      <span className="mt-1 block font-mono text-xs text-muted">
-                        {cityLabel(item.location)} · {displayWhen(item.timeLabel, item.caseDate)}
-                      </span>
-                      <span className="mt-1 block whitespace-nowrap font-mono text-xs text-muted">
-                        Updated {formatUpdated(item.updatedAt || item.createdAt)}
-                      </span>
-                    </span>
-                    <span className="flex items-center gap-2 sm:justify-end">
-                      <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] ${open ? "border-navy/40 text-navy" : "border-match/30 text-match"}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${open ? "bg-navy" : "bg-match"}`} />
-                        {open ? "Open" : "Closed"}
-                      </span>
-                      {item.stolen ? <Flag>Stolen</Flag> : null}
-                      {item.hitAndRun ? <Flag>Hit and run</Flag> : null}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <CaseIndex cases={cases} className="mt-8" />
         )}
       </main>
     </div>
+  );
+}
+
+export function CaseIndex({ cases, className = "" }: { cases: CaseRecord[]; className?: string }) {
+  return (
+    <ul className={`glass overflow-hidden rounded-2xl ${className}`}>
+      {cases.map((item) => {
+        const status = caseStatus(item);
+        const open = status === "open";
+        return (
+          <li key={item.id} className="border-t border-line first:border-t-0">
+            <Link href={`/cases/${item.id}`} className="group grid gap-3 px-5 py-4 transition hover:bg-white/[0.03] sm:grid-cols-[7rem_1fr_auto] sm:items-center">
+              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">{item.id.slice(0, 8)}</span>
+              <span>
+                <span className="block text-lg font-semibold capitalize tracking-tight">
+                  {item.color} {vehicleLabel(item.vehicleType)}
+                </span>
+                <span className="mt-1 block font-mono text-xs text-muted">
+                  {cityLabel(item.location)} · {displayWhen(item.timeLabel, item.caseDate)}
+                </span>
+                <span className="mt-1 block whitespace-nowrap font-mono text-xs text-muted">
+                  Updated {formatUpdated(item.updatedAt || item.createdAt)}
+                </span>
+              </span>
+              <span className="flex items-center gap-2 sm:justify-end">
+                <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] ${open ? "border-navy/40 text-navy" : "border-match/30 text-match"}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${open ? "bg-navy" : "bg-match"}`} />
+                  {open ? "Open" : "Closed"}
+                </span>
+                {item.stolen ? <Flag>Stolen</Flag> : null}
+                {item.hitAndRun ? <Flag>Hit and run</Flag> : null}
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
