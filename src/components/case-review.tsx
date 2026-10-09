@@ -74,8 +74,9 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
   }
 
   function commit(next: CaseRecord) {
-    setRecord(next);
-    saveCase(next);
+    const stamped = saveCase(next);
+    setRecord(stamped);
+    return stamped;
   }
 
   function reject() {
@@ -88,8 +89,11 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
       const clips = current.clips.map((clip) => (clip.id === id ? { ...clip, mark: "not_vehicle" as const } : clip));
       const remaining = clips.some((clip) => clip.mark !== "not_vehicle");
       const next = { ...current, clips, status: remaining ? current.status ?? "open" : "closed" };
-      saveCase(next);
-      return next;
+      try {
+        return saveCase(next);
+      } catch {
+        return next;
+      }
     });
   }
 
@@ -104,20 +108,39 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
     const clips = record.clips.map((clip) =>
       clip.id === active.id ? { ...clip, mark: "possible_match" as const } : clip,
     );
-    commit({
-      ...record,
-      clips,
-      still: still || record.still,
-      vehicleBox,
-      saved: true,
-      status: "closed",
-    });
+    try {
+      commit({
+        ...record,
+        clips,
+        still: still || record.still,
+        vehicleBox,
+        saved: true,
+        status: "closed",
+      });
+    } catch {
+      setFrameNote("Could not keep this still on the desk. Try File case again, or clear old cases.");
+      setRecord({
+        ...record,
+        clips,
+        still: still || record.still,
+        vehicleBox,
+        saved: true,
+        status: "closed",
+      });
+      if (still) setInspecting(true);
+      return;
+    }
     if (still) setInspecting(true);
     setFrameNote(still ? "" : "Play the clip for a moment, then press Yes again to grab the frame.");
   }
 
   function fileCase() {
-    commit({ ...record, saved: true, status: "closed" });
+    try {
+      commit({ ...record, saved: true, status: "closed" });
+    } catch {
+      setFrameNote("Could not file this case on the desk. Clear older cases, then try again.");
+      return;
+    }
     router.push("/cases");
   }
 
@@ -241,7 +264,15 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
                     <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">Plate</span>
                     <input
                       value={record.plate ?? ""}
-                      onChange={(event) => commit({ ...record, plate: event.target.value.toUpperCase(), saved: true })}
+                      onChange={(event) => {
+                        const next = { ...record, plate: event.target.value.toUpperCase(), saved: true };
+                        setRecord(next);
+                        try {
+                          saveCase(next);
+                        } catch {
+                          /* keep typing; File case retries a leaner write */
+                        }
+                      }}
                       className="mt-1 w-full rounded-xl border border-line bg-black/30 px-3 py-3 font-mono text-lg uppercase tracking-[0.18em]"
                       placeholder="ABC1234"
                       autoComplete="off"
@@ -253,7 +284,15 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
                     <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">Note</span>
                     <textarea
                       value={record.note ?? ""}
-                      onChange={(event) => commit({ ...record, note: event.target.value, saved: true })}
+                      onChange={(event) => {
+                        const next = { ...record, note: event.target.value, saved: true };
+                        setRecord(next);
+                        try {
+                          saveCase(next);
+                        } catch {
+                          /* keep typing; File case retries a leaner write */
+                        }
+                      }}
                       rows={3}
                       className="mt-1 w-full rounded-xl border border-line bg-black/30 px-3 py-3 text-sm"
                       placeholder="Damage, direction, anything else"
@@ -264,17 +303,30 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
                     <Mark
                       on={record.stolen}
                       label="Stolen"
-                      onClick={() => commit({ ...record, stolen: !record.stolen, saved: true })}
+                      onClick={() => {
+                        try {
+                          commit({ ...record, stolen: !record.stolen, saved: true });
+                        } catch {
+                          setRecord({ ...record, stolen: !record.stolen, saved: true });
+                        }
+                      }}
                     />
                     <Mark
                       on={record.hitAndRun}
                       label="Hit and run"
-                      onClick={() => commit({ ...record, hitAndRun: !record.hitAndRun, saved: true })}
+                      onClick={() => {
+                        try {
+                          commit({ ...record, hitAndRun: !record.hitAndRun, saved: true });
+                        } catch {
+                          setRecord({ ...record, hitAndRun: !record.hitAndRun, saved: true });
+                        }
+                      }}
                     />
                   </div>
                   <button type="submit" className="action w-full rounded-md px-4 py-3 text-sm font-semibold">
                     File case
                   </button>
+                  {frameNote ? <p className="text-sm text-muted">{frameNote}</p> : null}
                 </form>
               ) : null}
               {record.clips.length > 0 ? (
@@ -348,13 +400,16 @@ async function grabFrame(video: HTMLVideoElement | null) {
       await new Promise<void>((resolve) => video.addEventListener("seeked", () => resolve(), { once: true }));
     }
     if (!video.videoWidth) return "";
+    // Keep stills small enough for browser localStorage (~5MB shared).
+    const maxWidth = 960;
+    const scale = Math.min(1, maxWidth / video.videoWidth);
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
     const context = canvas.getContext("2d");
     if (!context) return "";
-    context.drawImage(video, 0, 0);
-    return canvas.toDataURL("image/jpeg", 0.82);
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.72);
   } catch {
     return "";
   }
