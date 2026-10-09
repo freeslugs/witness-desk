@@ -161,6 +161,16 @@ export async function searchVehicles(
     }));
 }
 
+export async function detectionPayload(source: string) {
+  const token = await getToken();
+  const url = new URL(`${backend()}/api/v1/videos/detections`);
+  url.searchParams.set("source", source);
+  const response = await fetch(url, { headers: headers(token), cache: "no-store" });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("Could not load detections for this clip.");
+  return response.json() as Promise<unknown>;
+}
+
 export async function openStream(source: string, range: string | null) {
   const token = await getToken();
   const url = new URL(`${backend()}/api/v1/videos/stream`);

@@ -1,3 +1,5 @@
+import type { NormBox } from "./vehicle-box";
+
 export const VEHICLE_TYPES = ["taxi", "bus", "suv", "truck", "car"] as const;
 
 export type VehicleType = (typeof VEHICLE_TYPES)[number];
@@ -32,6 +34,9 @@ export type CaseRecord = {
   timeLabel?: string;
   stolen: boolean;
   hitAndRun: boolean;
+  plate?: string;
+  note?: string;
+  vehicleBox?: NormBox | null;
   query: string;
   saved: boolean;
   status?: CaseStatus;

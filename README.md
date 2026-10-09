@@ -12,7 +12,7 @@ Live site: https://witness-desk.vercel.app
 - Stored clip descriptions from the video stack ([NVIDIA Cosmos](https://www.nvidia.com/en-us/ai/cosmos/) and YOLO, running on [CoreWeave](https://coreweave.com/) GPUs). The desk shows those captions. It does not invent events the captions do not contain.
 - Next.js, deployed on Vercel. Cases stay in the browser.
 
-The search is color, vehicle type, city, and an optional time window. Plates and make or model are not in this index, so the desk does not ask for them. Stolen and hit-and-run are marks a person sets after watching a clip. They are not part of the search.
+The search is color, vehicle type, city, and an optional time window. The index does not read plates or make and model. After a yes, the officer zooms the frozen frame, types the plate they can see, and marks stolen or hit and run. Those marks are not part of the search. A plate is optional when the frame is too muddy to read.
 
 ## Run locally
 

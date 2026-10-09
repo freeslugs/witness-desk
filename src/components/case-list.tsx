@@ -78,6 +78,11 @@ export function CaseIndex({ cases, className = "" }: { cases: CaseRecord[]; clas
                   <span className={`h-1.5 w-1.5 rounded-full ${open ? "bg-navy" : "bg-match"}`} />
                   {open ? "Open" : "Closed"}
                 </span>
+                {item.plate ? (
+                  <span className="rounded-full border border-navy/40 px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-navy">
+                    {item.plate}
+                  </span>
+                ) : null}
                 {item.stolen ? <Flag>Stolen</Flag> : null}
                 {item.hitAndRun ? <Flag>Hit and run</Flag> : null}
               </span>

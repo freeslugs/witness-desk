@@ -1,24 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipGraph, type NodeCall } from "@/components/clip-graph";
+import { FrameLoupe } from "@/components/frame-loupe";
 import { DeskBar } from "@/components/ui";
 import { saveCase } from "@/lib/cases";
 import { cameraLabel, cityLabel, displayWhen, vehicleLabel } from "@/lib/labels";
 import type { CaseRecord } from "@/lib/types";
+import type { NormBox } from "@/lib/vehicle-box";
 
 export function CaseReview({ initial }: { initial: CaseRecord }) {
+  const router = useRouter();
   const [record, setRecord] = useState(initial);
   const [activeId, setActiveId] = useState(() => firstOpen(initial));
-  const [touring, setTouring] = useState(true);
   const [visitCalls, setVisitCalls] = useState<Record<string, NodeCall>>({});
+  const [holding, setHolding] = useState(false);
+  const [inspecting, setInspecting] = useState(Boolean(initial.still));
   const [frameNote, setFrameNote] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const open = useMemo(() => record.clips.filter((clip) => clip.mark !== "not_vehicle"), [record.clips]);
-  const openRef = useRef(open);
-  openRef.current = open;
   const clipsRef = useRef(record.clips);
   clipsRef.current = record.clips;
   const cutoff = useMemo(() => median(record.clips.map((clip) => clip.score)), [record.clips]);
@@ -32,7 +35,7 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
     }
     return next;
   }, [record.clips, visitCalls]);
-  const active = open.find((clip) => clip.id === activeId) ?? open[0] ?? null;
+  const active = record.clips.find((clip) => clip.id === activeId) ?? null;
   const reviewed = record.clips.length - open.length;
   const activeSource = active?.source ?? "";
 
@@ -42,26 +45,11 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
     const next = `/api/stream?source=${encodeURIComponent(activeSource)}`;
     if (video.dataset.clip === activeSource) return;
     video.dataset.clip = activeSource;
+    video.loop = false;
     video.src = next;
+    setHolding(false);
     void video.play().catch(() => undefined);
   }, [activeSource]);
-
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setTouring(false);
-  }, []);
-
-  useEffect(() => {
-    if (!touring) return;
-    const timer = window.setInterval(() => {
-      const list = openRef.current;
-      if (list.length < 2) return;
-      setActiveId((current) => {
-        const index = list.findIndex((clip) => clip.id === current);
-        return list[(Math.max(index, 0) + 1) % list.length]?.id ?? current;
-      });
-    }, 2800);
-    return () => window.clearInterval(timer);
-  }, [touring]);
 
   const previousActive = useRef(activeId);
   useEffect(() => {
@@ -81,7 +69,7 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
   }
 
   function selectNode(id: string) {
-    setTouring(false);
+    setInspecting(false);
     setActiveId(id);
   }
 
@@ -93,9 +81,9 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
   function reject() {
     if (!active) return;
     const id = active.id;
-    const index = open.findIndex((clip) => clip.id === id);
-    const following = open[index + 1] ?? open[index - 1];
-    setActiveId(following && following.id !== id ? following.id : "");
+    const index = record.clips.findIndex((clip) => clip.id === id);
+    const following = record.clips.slice(index + 1).find((clip) => clip.mark !== "not_vehicle");
+    setActiveId(following?.id ?? "");
     setRecord((current) => {
       const clips = current.clips.map((clip) => (clip.id === id ? { ...clip, mark: "not_vehicle" as const } : clip));
       const remaining = clips.some((clip) => clip.mark !== "not_vehicle");
@@ -107,13 +95,30 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
 
   async function confirm() {
     if (!active) return;
-    setTouring(false);
-    const still = await grabFrame(videoRef.current);
+    const video = videoRef.current;
+    video?.pause();
+    setHolding(true);
+    const time = video?.currentTime ?? 0;
+    const still = await grabFrame(video);
+    const vehicleBox = still ? await readVehicleBox(active.source, time) : record.vehicleBox ?? null;
     const clips = record.clips.map((clip) =>
       clip.id === active.id ? { ...clip, mark: "possible_match" as const } : clip,
     );
-    commit({ ...record, clips, still: still || record.still, saved: true, status: "closed" });
+    commit({
+      ...record,
+      clips,
+      still: still || record.still,
+      vehicleBox,
+      saved: true,
+      status: "closed",
+    });
+    if (still) setInspecting(true);
     setFrameNote(still ? "" : "Play the clip for a moment, then press Yes again to grab the frame.");
+  }
+
+  function fileCase() {
+    commit({ ...record, saved: true, status: "closed" });
+    router.push("/cases");
   }
 
   return (
@@ -161,22 +166,34 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
                     </div>
                     <video
                       ref={videoRef}
-                      className="aspect-video w-full bg-black"
+                      className={`aspect-video w-full bg-black ${inspecting && record.still ? "hidden" : ""}`}
                       controls
                       playsInline
                       muted
                       preload="auto"
                       aria-label="Clip under review"
+                      onEnded={() => setHolding(true)}
                     />
+                    {inspecting && record.still ? <FrameLoupe src={record.still} box={record.vehicleBox} /> : null}
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void confirm()}
-                      className="action rounded-md px-6 py-3 text-sm font-semibold transition"
-                    >
-                      Yes, this is it
-                    </button>
+                    {inspecting && record.still ? (
+                      <button
+                        type="button"
+                        onClick={() => setInspecting(false)}
+                        className="rounded-md border border-line bg-panel px-6 py-3 text-sm font-semibold transition hover:border-white/30"
+                      >
+                        Watch the clip
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void confirm()}
+                        className="action rounded-md px-6 py-3 text-sm font-semibold transition"
+                      >
+                        Yes, this is it
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={reject}
@@ -188,39 +205,77 @@ export function CaseReview({ initial }: { initial: CaseRecord }) {
                       {reviewed} cleared · {open.length} left
                     </p>
                   </div>
+                  {holding && active.mark !== "possible_match" ? (
+                    <p className="mt-3 text-sm text-muted">This clip is done. Yes stays here. No plays the next one.</p>
+                  ) : null}
                   {frameNote ? <p className="mt-3 text-sm text-muted">{frameNote}</p> : null}
                 </div>
               ) : (
                 <div className="glass rounded-2xl p-8">
-                  <h2 className="text-2xl font-semibold tracking-tight">Every clip is cleared.</h2>
-                  <p className="mt-2 text-muted">Start a new search if the vehicle was not in this set.</p>
+                  <h2 className="text-2xl font-semibold tracking-tight">
+                    {open.length === 0 ? "Every clip is cleared." : "That's the last clip in this pass."}
+                  </h2>
+                  <p className="mt-2 text-muted">
+                    {open.length === 0
+                      ? "Start a new search if the vehicle was not in this set."
+                      : "Pick another node to keep watching."}
+                  </p>
                 </div>
               )}
             </section>
 
             <aside className="space-y-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
               {record.still ? (
-                <div className="rise-in glass overflow-hidden rounded-2xl">
-                  <img src={record.still} alt="Still of the confirmed vehicle" className="aspect-video w-full object-cover" />
-                  <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-                    <div>
-                      <p className="text-sm font-semibold">Frame kept with this case</p>
-                      <p className="text-sm text-muted">The still from the clip you confirmed.</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Mark
-                        on={record.stolen}
-                        label="Stolen"
-                        onClick={() => commit({ ...record, stolen: !record.stolen, saved: true })}
-                      />
-                      <Mark
-                        on={record.hitAndRun}
-                        label="Hit and run"
-                        onClick={() => commit({ ...record, hitAndRun: !record.hitAndRun, saved: true })}
-                      />
-                    </div>
+                <form
+                  className="rise-in glass space-y-4 rounded-2xl p-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    fileCase();
+                  }}
+                >
+                  <div>
+                    <p className="text-sm font-semibold">Read the plate</p>
+                    <p className="mt-1 text-sm text-muted">Zoom the frame and type what you can see. A muddy frame can still be filed.</p>
                   </div>
-                </div>
+                  <label className="block">
+                    <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">Plate</span>
+                    <input
+                      value={record.plate ?? ""}
+                      onChange={(event) => commit({ ...record, plate: event.target.value.toUpperCase(), saved: true })}
+                      className="mt-1 w-full rounded-xl border border-line bg-black/30 px-3 py-3 font-mono text-lg uppercase tracking-[0.18em]"
+                      placeholder="ABC1234"
+                      autoComplete="off"
+                      spellCheck={false}
+                      aria-label="License plate"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">Note</span>
+                    <textarea
+                      value={record.note ?? ""}
+                      onChange={(event) => commit({ ...record, note: event.target.value, saved: true })}
+                      rows={3}
+                      className="mt-1 w-full rounded-xl border border-line bg-black/30 px-3 py-3 text-sm"
+                      placeholder="Damage, direction, anything else"
+                      aria-label="Case note"
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Mark
+                      on={record.stolen}
+                      label="Stolen"
+                      onClick={() => commit({ ...record, stolen: !record.stolen, saved: true })}
+                    />
+                    <Mark
+                      on={record.hitAndRun}
+                      label="Hit and run"
+                      onClick={() => commit({ ...record, hitAndRun: !record.hitAndRun, saved: true })}
+                    />
+                  </div>
+                  <button type="submit" className="action w-full rounded-md px-4 py-3 text-sm font-semibold">
+                    File case
+                  </button>
+                </form>
               ) : null}
               {record.clips.length > 0 ? (
                 <div>
@@ -269,6 +324,17 @@ function median(values: number[]) {
 
 function firstOpen(record: CaseRecord) {
   return record.clips.find((clip) => clip.mark !== "not_vehicle")?.id ?? record.clips[0]?.id ?? "";
+}
+
+async function readVehicleBox(source: string, time: number): Promise<NormBox | null> {
+  try {
+    const response = await fetch(`/api/detections?source=${encodeURIComponent(source)}&time=${encodeURIComponent(String(time))}`);
+    if (!response.ok) return null;
+    const data = (await response.json()) as { box?: NormBox | null };
+    return data.box ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function grabFrame(video: HTMLVideoElement | null) {
